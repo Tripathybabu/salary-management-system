@@ -3,14 +3,19 @@
   "version": "1.0.0",
   "private": true,
   "description": "Salary management software for a 10,000-employee organisation",
-  "workspaces": ["packages/*", "apps/*"],
-  "engines": { "node": ">=20" },
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
   "scripts": {
     "dev": "concurrently -n api,web -c cyan,magenta \"npm:dev:api\" \"npm:dev:web\"",
     "dev:api": "npm run dev -w @salary/api",
     "dev:web": "npm run dev -w @salary/web",
     "build": "npm run build -w @salary/shared && npm run build -w @salary/api && npm run build -w @salary/web",
-    "test": "npm run test -w @salary/shared && npm run test -w @salary/api",
+    "test": "npm run test -w @salary/shared && npm run test -w @salary/api && npm run test -w @salary/web",
     "test:web": "npm run test -w @salary/web",
     "db:migrate": "npm run db:migrate -w @salary/api",
     "db:seed": "npm run db:seed -w @salary/api",
@@ -20,6 +25,10 @@
   },
   "devDependencies": {
     "concurrently": "^9.1.2",
+    "playwright": "^1.63.0",
     "typescript": "^5.7.3"
+  },
+  "overrides": {
+    "postcss": "^8.5.28"
   }
 }
