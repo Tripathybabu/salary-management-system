@@ -12,7 +12,14 @@ const globalForPrisma = globalThis as unknown as { prisma?: PrismaClient };
 export const prisma =
   globalForPrisma.prisma ??
   new PrismaClient({
-    log: process.env.NODE_ENV === 'development' ? ['warn', 'error'] : ['error'],
+    // Silent under test: the concurrency suite deliberately provokes serialization
+    // failures, and logging them makes a passing run look like a broken one.
+    log:
+      process.env.NODE_ENV === 'test'
+        ? []
+        : process.env.NODE_ENV === 'development'
+          ? ['warn', 'error']
+          : ['error'],
   });
 
 if (process.env.NODE_ENV !== 'production') {

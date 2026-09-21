@@ -10,6 +10,7 @@ node_modules/
 .env.test
 .env.*
 !.env.example
+!.env.*.example
 
 # Build output
 dist/
