@@ -1,158 +1,119 @@
-# ACME Salary Management System
+# ACME Salary Management — Web
 
-Compensation management and pay analytics for a 10,000-employee organisation,
-built for the HR Manager persona.
+Frontend for a compensation management and pay-analytics system covering 10,000
+employees across eleven countries. Built for the HR Manager persona.
+
+**API repository:** <https://github.com/Tripathybabu/salary-management-system-api>
 
 The premise: storing salaries is table stakes — a spreadsheet already does that.
 What a spreadsheet does badly is answer *"are we paying people fairly?"* across
-10,000 rows and eleven currencies. That question is what this system is built
+10,000 rows and eleven currencies. That question is what these screens are built
 around.
 
 ---
 
 ## Quick start
 
-**Prerequisites:** Node 20+, PostgreSQL 14+ (17 recommended).
+**The API must be running first.** Set it up from the repository linked above,
+then:
 
 ```bash
-# 1. Install
 npm install
 
-# 2. Configure — set your database password in each
-cp .env.example .env
-cp apps/api/.env.example apps/api/.env          # Prisma reads this one
-cp apps/web/.env.example apps/web/.env.local
+# Points the app at the API
+cp .env.example .env.local
 
-# 3. Create the schema and seed 10,000 employees (~30s)
-npm run db:migrate
-npm run db:seed
-
-# 4. Run both apps
-npm run dev
+npm run dev          # http://localhost:3000
 ```
-
-- Web UI → <http://localhost:3000>
-- API → <http://localhost:4000>
 
 ### Tests
 
 ```bash
-npm test          # 178 tests: 65 shared, 83 API, 30 web
-```
-
-The API suite runs against a **separate** PostgreSQL database, because it
-truncates tables between files. Create it once:
-
-```bash
-createdb salary_management_test
-cp apps/api/.env.test.example apps/api/.env.test    # then set your password
-npm run test:setup -w @salary/api                   # applies migrations
+npm test             # 95 tests: 65 shared, 30 component
 ```
 
 ---
 
-## What it does
+## Screens
 
 | Screen | Purpose |
 |---|---|
-| **Dashboard** | Headline payroll metrics, cost by department and country, 12-month trend, and the pay-equity list. |
-| **Employees** | Server-side search, filter, sort and pagination over 10,000 records. |
-| **Employee detail** | Profile plus the full salary-history timeline, with the reason and actor for every change. |
-| **Pay analysis** | Distribution by any dimension, gender pay gap with suppression, and configurable outlier detection. |
+| **Dashboard** (`/`) | Headline payroll metrics, cost by department and country, 12-month trend, and the pay-equity list. |
+| **Employees** (`/employees`) | Server-side search, filter, sort and pagination over 10,000 records. |
+| **Employee detail** (`/employees/[id]`) | Profile plus the full salary-history timeline, with the reason and actor for every change. |
+| **Pay analysis** (`/analytics`) | Distribution by any dimension, gender pay gap with suppression, configurable outlier detection. |
 
 ---
 
 ## The decisions that matter
 
-Full reasoning lives in [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md). The three
-that shaped everything else:
+**1. Ten thousand rows never reach the browser.**
+Every filter, sort and page is a server-side query returning at most 25 rows.
+Search is debounced, so typing a name issues one request rather than one per
+keystroke, and React Query keeps the previous page visible while the next loads
+so the table never collapses to a skeleton mid-navigation.
 
-**1. Salary records are immutable and effective-dated.**
-A raise appends a row; it never overwrites one. This is what turns a CRUD app
-into something that can answer questions — point-in-time reporting, trend
-analysis and a real audit trail all fall out of it. The cost is that "current
-salary" becomes a join, mitigated with a partial index on `effective_to IS NULL`,
-and that every change is a two-statement invariant, so it runs in a transaction
-at `Serializable` isolation with a unique partial index as a database-level
-backstop.
+**2. The consequence of a salary change is visible before it is committed.**
+The change dialog computes the percentage difference live as you type, so a
+mistyped extra zero reads as `+900%` at the moment it is entered rather than
+being discovered later in the dashboard totals. It is deliberately withheld
+across a currency change, where part of the difference is FX and labelling it a
+raise would be a false number.
 
-**2. Median over mean, everywhere.**
-Salary distributions are right-skewed. In the seeded data the mean is $76,453 and
-the median $62,622 — reporting the mean alone would overstate what a typical
-employee earns by 22%. Percentiles are computed in Postgres with
-`PERCENTILE_CONT` and cross-checked in tests against a reference implementation
-in `@salary/shared`.
+**3. Every figure carries the context needed to judge it.**
+Medians lead, with means beside them — a mean alone misrepresents a skewed salary
+distribution. Pay-gap rows show their headcounts and the org-wide gender
+coverage, and groups too small to report have their medians withheld entirely,
+because a median across two people discloses both salaries. Outlier rows show the
+band median and band size, so a flag is auditable rather than asserted.
 
-**3. Money is never a float, and FX rates are fixed.**
-Amounts are `DECIMAL` in the database and integer minor units in application
-logic. Each record stores both the local amount and a USD normalisation computed
-**at write time** from a versioned rate table — computing it at read time would
-mean last quarter's report silently changes when a rate moves.
-
----
-
-## Two things worth reading the code for
-
-Both were found by running the system against the seeded data and looking at the
-output, not by the tests passing.
-
-**The outlier report was flagging the wrong people.** Every intern (93/93) and
-94% of part-timers were reported as severely underpaid, against 11% of full-time
-staff. Their pay is pro-rated *by contract* — measuring it against a full-time
-band median reports a contract term as a pay-equity problem, and buried the
-genuine cases under a list of people whose pay was exactly right. Bands are now
-full-time only. The honest fix needs an FTE fraction on the employee record;
-that is written up rather than faked.
-
-**The trend endpoint missed its performance target, and the fix that should have
-worked didn't.** A composite index made no difference — `EXPLAIN` showed the
-planner ignoring it for a sequential scan, because the predicate carries an
-`OR ... IS NULL` and matches 22% of the table. It was reverted rather than left
-in place looking useful. [`docs/PERFORMANCE.md`](docs/PERFORMANCE.md) records the
-measurements, including what failed.
+**4. Validation is the API's own schema.**
+Forms validate with the Zod schemas from `packages/shared` — the same objects the
+server enforces — so the two cannot drift apart. Client validation is a
+convenience for fast feedback; the server still validates everything.
 
 ---
 
-## Testing approach
+## Notes from building it
 
-**178 tests.** Integration tests run against real PostgreSQL rather than mocks,
-because the analytics layer is built on `PERCENTILE_CONT`, `FILTER` clauses and
-partial indexes — a suite that mocked Prisma would verify only that the mock was
-called, leaving the code most worth testing uncovered.
+**Charts rendered nothing despite a clean build.** The dashboard compiled,
+type-checked and served HTTP 200 while every bar chart was empty: Recharts 2.x
+does not properly support React 19. Only screenshotting the running page in a
+real browser surfaced it. Pinned to Recharts 3.
 
-What they actually protect:
-
-- **Invariants** — records close contiguously, superseded amounts never mutate,
-  and two racing raises resolve to one winner rather than two open records.
-- **Maths** — fixtures small enough that every expected value is checkable by
-  hand, with the SQL percentiles cross-checked against the reference
-  implementation.
-- **Judgement** — that small groups have their medians suppressed, that a
-  percentage change is withheld across a currency change, and that `PATCH`
-  cannot alter pay.
-
-Determinism throughout: fixed fixtures, seeded RNG, no network, single fork.
+**UI primitives are hand-rolled.** The app needs about eight of them —
+card, button, input, select, field, badge, skeleton, empty state — and each is a
+few lines. Pulling in a component library to get them would have added a
+dependency and a second styling system for no benefit at this size.
 
 ---
 
 ## Layout
 
 ```
-apps/api            Express 5 + Prisma. Routes → services → Postgres.
-apps/web            Next.js 16 (App Router), Tailwind, Recharts.
-packages/shared     Money, statistics, domain types and Zod schemas.
-docs/               Requirements, architecture, performance, AI usage.
+src/app/           Routes: dashboard, employees, detail, new, analytics.
+src/components/    UI primitives, charts, salary change dialog.
+src/lib/           Typed API client and display formatting.
+src/hooks/         useDebounced, for the search box.
+tests/             Formatting and component suites.
+packages/shared/   Money, statistics, domain types, Zod schemas.
+docs/              Requirements, architecture, performance, AI usage.
 ```
 
-`packages/shared` exists so the API's validation and the web app's form
-validation are *the same code* — the main reason this is a monorepo.
+`packages/shared` is duplicated in the API repository so both sides validate with
+the same schemas. It is the one piece of deliberate duplication across the two
+repos; in the original monorepo it was a single workspace package.
 
 ---
 
-## Deliberately out of scope
+## Configuration
 
-Authentication, payroll processing, live FX, approval workflows, bulk Excel
-import and org-chart visualisation. Each exclusion and its reasoning is in
-[`docs/REQUIREMENTS.md`](docs/REQUIREMENTS.md) §4. The auth seam is marked in
-`apps/api/src/app.ts` and an `actor` is already threaded through every service
-for audit fields, so wiring real auth touches one middleware and one function.
+| Variable | Default | Purpose |
+|---|---|---|
+| `NEXT_PUBLIC_API_URL` | `http://localhost:4000` | Base URL of the API |
+
+There is no authentication — one persona in the brief, and a fake login screen
+would be worse than none. The API client sends an `x-actor-id` header that the
+backend records on every salary change, so the audit trail is real and the auth
+seam is a single change when it is needed. Reasoning in
+[`docs/REQUIREMENTS.md`](docs/REQUIREMENTS.md) §4.

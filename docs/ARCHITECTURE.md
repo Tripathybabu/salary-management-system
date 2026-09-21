@@ -12,20 +12,37 @@ Companion to `REQUIREMENTS.md`. This records *why* the system is shaped the way 
 | Frontend | Next.js 15 (App Router) + TypeScript | Server Components fetch dashboard data without a client-side waterfall. |
 | UI | Tailwind CSS + shadcn/ui | Accessible primitives (Radix) without inheriting a heavy component framework's opinions. |
 | Charts | Recharts | Composable, React-native, sufficient for the five chart types needed. |
-| Tests | Vitest + Supertest + Testing Library | One runner across both apps. Fast, ESM-native, good TypeScript support. |
+| Tests | Vitest + Supertest + Testing Library | One runner across both repos. Fast, ESM-native, good TypeScript support. |
 
-### Monorepo layout
+### Repository layout
+
+The system is delivered as two repositories, one per deployable:
 
 ```
-/apps/api      Express backend, Prisma schema, seed script
-/apps/web      Next.js frontend
-/packages/shared   Types, Zod schemas, currency & stats utilities shared by both
-/docs          Requirements, architecture, AI usage notes
+salary-management-system-api        Express backend, Prisma schema, seed script
+  src/  prisma/  tests/  packages/shared/  docs/
+
+salary-management-system            Next.js frontend
+  src/  tests/  packages/shared/  docs/
 ```
 
-npm workspaces — not Turborepo/Nx. Two apps and one shared package does not justify a build
-orchestrator. `packages/shared` exists so the API's validation schemas and the frontend's
-form validation are *the same code*, which is the main reason to have a monorepo at all.
+**On `packages/shared`.** It holds the money arithmetic, statistics, domain
+vocabulary and Zod schemas, and it exists so the API's validation and the web
+app's form validation are *the same code* rather than two implementations that
+drift apart. Both repositories therefore carry a copy.
+
+This was originally one monorepo with `packages/shared` as a single npm workspace
+consumed by the API repository and the web repository — which is the right shape for this system,
+since the shared package has exactly two consumers and no independent release
+cycle. It was split into two repositories to match the delivery requirement of a
+separate frontend and backend repo.
+
+The duplication is the cost of that split, and it is a real one: a change to a
+validation schema now has to be applied twice, and nothing enforces that it is.
+If the split is permanent, the correct fix is to publish `@salary/shared` as a
+versioned package to a private registry and depend on it by version from both
+sides. Copying it is the honest interim answer; pretending the coupling does not
+exist would be worse.
 
 ## 2. The central decision: effective-dated salary records
 
@@ -126,7 +143,7 @@ Route  →  Validation (Zod)  →  Service  →  Prisma  →  Postgres
 - **Errors**: services throw typed domain errors; one Express error middleware maps them to
   status codes. No status codes scattered through business logic.
 
-**Where auth would go:** a single `requireAuth` middleware in `apps/api/src/app.ts`, plus an
+**Where auth would go:** a single `requireAuth` middleware in `src/app.ts`, plus an
 `actorId` already threaded through the service layer for audit fields. The seam exists; the
 implementation is deliberately out of scope (see `REQUIREMENTS.md` §4).
 
