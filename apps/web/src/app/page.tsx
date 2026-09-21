@@ -38,8 +38,8 @@ export default function DashboardPage() {
     queryFn: () => getBreakdown({ dimension: 'country' }),
   });
   const trend = useQuery({
-    queryKey: ['trend', 18],
-    queryFn: () => getTrend({ months: 18 }),
+    queryKey: ['trend', 12],
+    queryFn: () => getTrend({ months: 12 }),
   });
   const outliers = useQuery({
     queryKey: ['outliers', 'dashboard'],
@@ -154,7 +154,7 @@ export default function DashboardPage() {
       <Card>
         <CardHeader
           title="Compensation trend"
-          description="Payroll cost and median salary over the last 18 months, reconstructed from effective-dated history"
+          description="Payroll cost and median salary over the last 12 months, reconstructed from effective-dated history"
         />
         <div className="p-5">
           {trend.isPending ? (

@@ -68,8 +68,13 @@ analyticsRoutes.get(
   '/trend',
   asyncHandler(async (req, res) => {
     const { filters } = parseFilters(req.query);
+    // Each period recomputes a median over every salary record in effect that
+    // month, so cost grows linearly with the range: roughly 25ms per period
+    // against the seeded 10k dataset. 36 months is the point where the request
+    // still returns inside a second; see docs/PERFORMANCE.md for the measurements
+    // and for the materialised-snapshot approach that would lift the ceiling.
     const { months } = z
-      .object({ months: z.coerce.number().int().min(3).max(60).default(24) })
+      .object({ months: z.coerce.number().int().min(3).max(36).default(12) })
       .parse(req.query);
     res.json({ months, points: await getCompensationTrend(filters, months) });
   }),

@@ -184,6 +184,13 @@ model SalaryRecord {
   /// Salary history, newest first.
   @@index([employeeId, effectiveFrom(sort: Desc)])
   /// Trend queries scan by date.
+  ///
+  /// Deliberately single-column. I measured a composite (effective_from,
+  /// effective_to) and a covering variant: the planner ignores both and picks a
+  /// sequential scan, because the point-in-time predicate carries an
+  /// `OR effective_to IS NULL` and matches ~22% of the table, where a seq scan is
+  /// genuinely cheaper. Keeping an index the planner never uses would cost write
+  /// throughput and mislead the next reader. See docs/PERFORMANCE.md.
   @@index([effectiveFrom])
   @@index([changeReason])
   @@map("salary_records")

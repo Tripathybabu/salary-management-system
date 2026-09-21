@@ -77,6 +77,7 @@ These are deliberate exclusions, not oversights. Each one is a considered trade-
 | **Org chart / reporting hierarchy** | The schema carries `managerId` so the data is there, but hierarchy *visualisation* and rollup aggregation is a distinct problem. Not needed to answer pay questions. |
 | **Employee self-service portal** | Different persona. Explicitly not the brief. |
 | **Hard deletes** | Compensation data is financial-audit material. Employees deactivate; salary records never mutate. |
+| **FTE-adjusted pay comparison** | Part-time and intern pay is pro-rated by contract, so comparing it to a full-time band median reports a contract term as a pay-equity problem. Against the seeded data that was not marginal: every intern and 94% of part-timers were flagged, versus 11% of full-time staff, burying the real findings. Doing this properly needs an `fteFraction` on the employee record so part-time pay can be annualised to a full-time equivalent. That field does not exist, so the outlier report is restricted to full-time employees rather than silently mis-reporting them. This is the second thing I would build next. |
 
 ## 5. Non-functional requirements
 

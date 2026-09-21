@@ -196,9 +196,9 @@ describe('GET /api/analytics/trend', () => {
     expect([...periods].sort()).toEqual(periods);
   });
 
-  it('defaults to 24 months and bounds the range', async () => {
+  it('defaults to 12 months and bounds the range', async () => {
     const defaulted = await request(app).get('/api/analytics/trend').expect(200);
-    expect(defaulted.body.months).toBe(24);
+    expect(defaulted.body.months).toBe(12);
 
     // An unbounded range would let a client ask for an arbitrarily expensive scan.
     await request(app).get('/api/analytics/trend?months=600').expect(400);
