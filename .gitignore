@@ -40,3 +40,11 @@ Thumbs.db
 # Prisma local artifacts
 prisma/*.db
 prisma/*.db-journal
+
+# Next.js generates these; they are build output, not source.
+next-env.d.ts
+AGENTS.md
+CLAUDE.md
+branch_structure.json
+temp_auto_push.bat
+temp_interactive_push.bat

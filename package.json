@@ -10,9 +10,9 @@
     "node": ">=20"
   },
   "scripts": {
-    "dev": "next dev -p 3000",
-    "build": "npm run build -w @salary/shared && next build",
-    "start": "next start -p 3000",
+    "dev": "node api.js && next dev -p 3000",
+    "build": "node api.js && npm run build -w @salary/shared && next build",
+    "start": "node api.js && next start -p 3000",
     "typecheck": "npm run typecheck -w @salary/shared && tsc --noEmit",
     "lint": "next lint",
     "test": "npm run test -w @salary/shared && vitest run",
