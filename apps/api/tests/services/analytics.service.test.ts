@@ -342,6 +342,48 @@ describe('getPayOutliers', () => {
     expect(await getPayOutliers(ALL, options)).toHaveLength(0);
   });
 
+  it('excludes part-time and intern staff, whose pay is pro-rated by design', async () => {
+    // Regression test. Interns are paid a fraction of a full-time salary because
+    // that is the contract, not because they are underpaid. Scoring them against a
+    // full-time median flagged every intern and almost every part-timer in the
+    // seeded dataset, burying the genuine findings.
+    await createCohort(engineeringId, Array(5).fill(100_000), { level: 'L3' });
+
+    await createTestEmployee({
+      departmentId: engineeringId, level: 'L3', salary: 35_000, salaryUsd: 35_000,
+      employmentType: 'INTERN', firstName: 'Intern', lastName: 'Person',
+    });
+    await createTestEmployee({
+      departmentId: engineeringId, level: 'L3', salary: 55_000, salaryUsd: 55_000,
+      employmentType: 'PART_TIME', firstName: 'PartTime', lastName: 'Person',
+    });
+
+    const outliers = await getPayOutliers(ALL, options);
+
+    expect(outliers).toHaveLength(0);
+  });
+
+  it('does not let pro-rated pay drag down the band median', async () => {
+    // The exclusion has to cover the band itself, not just who gets scored:
+    // leaving interns in the median would lower the bar and hide real cases.
+    await createCohort(engineeringId, Array(5).fill(100_000), { level: 'L3' });
+    await createCohort(engineeringId, Array(4).fill(20_000), {
+      level: 'L3', employmentType: 'INTERN',
+    });
+    await createTestEmployee({
+      departmentId: engineeringId, level: 'L3', salary: 70_000, salaryUsd: 70_000,
+      firstName: 'Genuinely', lastName: 'Underpaid',
+    });
+
+    const outliers = await getPayOutliers(ALL, options);
+
+    // The band stays at the full-time median of 100k, so the 70k full-timer is
+    // still correctly flagged at -30%.
+    expect(outliers).toHaveLength(1);
+    expect(outliers[0]!.name).toBe('Genuinely Underpaid');
+    expect(outliers[0]!.bandMedianUsd).toBe(100_000);
+  });
+
   it('finds overpay outliers when asked for direction above', async () => {
     await createCohort(engineeringId, Array(5).fill(100_000), { level: 'L3' });
     await createTestEmployee({

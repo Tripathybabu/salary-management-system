@@ -343,9 +343,23 @@ export interface OutlierRow {
  * This is the screen that turns the dashboard into an action list: not "here is our
  * median", but "here are the eleven people you should look at on Monday".
  *
- * Band = level × country. Comparing across countries would flag every employee in a
- * lower-cost market as underpaid, which is noise, not a finding. Bands below
- * `minBandSize` are skipped — a "median" of three people is not a band.
+ * Band = level × country, over full-time employees only. Three deliberate choices:
+ *
+ * 1. **Country is in the band key.** Comparing across countries would flag every
+ *    employee in a lower-cost market as underpaid — noise, not a finding.
+ *
+ * 2. **Only full-time employees are compared.** A part-timer on 0.55 FTE and an
+ *    intern earn a fraction of a full-time salary *by design*; measuring them
+ *    against a full-time median reports a contract term as a pay-equity problem.
+ *    Against the seeded dataset this was not a marginal effect: every intern and
+ *    94% of part-timers were flagged, versus 11% of full-time staff, which buried
+ *    the real findings under a list of people whose pay was exactly right.
+ *    Fixing this properly needs an FTE fraction on the employee record so
+ *    part-time pay can be annualised to a full-time equivalent and compared
+ *    honestly; that field does not exist yet, so they are excluded rather than
+ *    silently mis-reported. Recorded in docs/REQUIREMENTS.md §4.
+ *
+ * 3. Bands below `minBandSize` are skipped — a "median" of three people is not a band.
  */
 export async function getPayOutliers(
   filters: AnalyticsFilters,
@@ -368,11 +382,18 @@ export async function getPayOutliers(
 
   const rows = await prisma.$queryRaw<Record<string, unknown>[]>`
     WITH current_comp AS (${base}),
+    -- Comparable population: full-time only, so a pro-rated salary is never
+    -- measured against a full-time median. Both the band and the people scored
+    -- against it come from this set.
+    comparable AS (
+      SELECT * FROM current_comp
+      WHERE employment_type = 'FULL_TIME'::"EmploymentType"
+    ),
     bands AS (
       SELECT level, country_code,
              PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY amount) AS band_median,
              COUNT(*)::int AS band_size
-      FROM current_comp
+      FROM comparable
       GROUP BY level, country_code
       HAVING COUNT(*) >= ${options.minBandSize}
     ),
@@ -380,7 +401,7 @@ export async function getPayOutliers(
       SELECT
         cc.id, cc.amount, b.band_median, b.band_size,
         ((cc.amount - b.band_median) / NULLIF(b.band_median, 0))::float8 AS deviation
-      FROM current_comp cc
+      FROM comparable cc
       JOIN bands b ON b.level = cc.level AND b.country_code = cc.country_code
     )
     SELECT

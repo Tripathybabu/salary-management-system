@@ -83,6 +83,7 @@ interface EmployeeFixture {
   departmentId: string;
   jobTitle?: string;
   level?: Prisma.EmployeeCreateInput['level'];
+  employmentType?: Prisma.EmployeeCreateInput['employmentType'];
   status?: Prisma.EmployeeCreateInput['status'];
   gender?: Prisma.EmployeeCreateInput['gender'];
   hireDate?: Date;
@@ -114,6 +115,7 @@ export async function createTestEmployee(fixture: EmployeeFixture) {
       departmentId: fixture.departmentId,
       jobTitle: fixture.jobTitle ?? 'Software Engineer',
       level: fixture.level ?? 'L3',
+      employmentType: fixture.employmentType ?? 'FULL_TIME',
       status: fixture.status ?? 'ACTIVE',
       gender: fixture.gender ?? 'UNDISCLOSED',
       hireDate: fixture.hireDate ?? date('2020-01-01'),
